@@ -764,8 +764,8 @@ function global.registerCommand(id, options)
     if not options then
         error("Options must be provided")
     end
-    if not options.name and not string.match(options.name, "^[%l%d_-]$") then
-        error("Options.name must be provided and match pattern `^[%l%d_-]$`.")
+    if not options.name or not string.match(options.name, "^[%l%d_-]+$") then
+        error("Options.name must be provided and match pattern `^[%l%d_-]+`.")
     end
     if not options.exec or type(options.exec) ~= "function" then
         error("Options.exec must be a function")
@@ -776,6 +776,7 @@ function global.registerCommand(id, options)
     if not options.desc or type(options.desc) ~= "string" then
         error("Options.desc must be a string")
     end
+
     local cmd = {
         source = id,
         name = options.name,
@@ -783,12 +784,20 @@ function global.registerCommand(id, options)
         shortDesc = options.shortDesc,
         desc = options.desc
     }
+
+    -- Check if the command already exists
+    local replaced = false
     for k, v in ipairs(commands) do
         if v.source == cmd.source and v.name == cmd.name then
-            error("This command already exists")
+            commands[k] = cmd  -- Overwrite existing command
+            replaced = true
+            break
         end
     end
-    table.insert(commands, cmd)
+
+    if not replaced then
+        table.insert(commands, cmd)  -- Add new command if not found
+    end
 end
 
 local function handleLogsChange(added)
