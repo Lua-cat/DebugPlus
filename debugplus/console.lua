@@ -398,42 +398,26 @@ commands = {{
 }}
 local input = ui.TextInput.new(0)
 
-local function fullSaveHistory()
-        local max = config.getValue("commandHistoryMax")
-        local str = ""
-        for i = math.min(#history, max), 1, -1 do
-            if str ~= "" then str = str .. "\n" end
-            str = str .. util.escapeSimple(history[i])
-        end
-        love.filesystem.createDirectory("config")
-        love.filesystem.write("config/DebugPlus.history.jkr", str)
-end
-
 local function loadHistory()
     if not config.getValue("commandHistory") then return end
     local content = love.filesystem.read("config/DebugPlus.history.jkr")
     if not content then
         return
     end
+    local t = {}
     for str in string.gmatch(content, "([^\n\r]+)") do
         table.insert(history, 1, util.unescapeSimple(str))
     end
-    -- HACK: This is pretty slow and eats a lot of memory.
-    -- I reduced the history limit to avoid it being a big issue.
-    -- TODO: Investiage LuaJIT string.buffer
-    if #history > config.getValue("commandHistoryMax") then
-        fullSaveHistory()
-    end
 end
 
-local function saveHistory(latest)
-    local file = "config/DebugPlus.history.jkr"
-    local fs = love.filesystem
-    if fs.getInfo(file) then
-        fs.append(file, "\n" .. util.escapeSimple(latest))
-    else
-        fullSaveHistory()
+local function saveHistory()
+    local max = config.getValue("commandHistoryMax")
+    local str = ""
+    for i = math.min(#history, max), 1, -1 do
+        if str ~= "" then str = str .. "\n" end
+        str = str .. util.escapeSimple(history[i])
     end
+    love.filesystem.write("config/DebugPlus.history.jkr", str)
 end
 
 local function closeConsole()
@@ -453,9 +437,10 @@ local function runCommand()
     logger.handleLog({1, 0, 1}, "INFO", "> " .. inputText)
     if history[1] ~= inputText then
         table.insert(history, 1, inputText)
-        if config.getValue("commandHistory") then
-            saveHistory(inputText)
-        end
+    end
+
+    if config.getValue("commandHistory") then
+        saveHistory()
     end
 
     local cmdName = string.lower(string.gsub(inputText, "^(%S+).*", "%1"))
@@ -677,6 +662,14 @@ function global.doConsoleRender()
         love.keyboard.setKeyRepeat(true)
         love.keyboard.setTextInput(true)
     end
+    if not consoleOpen and not showNewLogs then
+        return
+    end
+    -- Setup
+    local width, height = love.graphics.getDimensions()
+    local padding = 10
+    local lineWidth = width - padding * 2
+    local bottom = height - padding * 2
     local now = love.timer.getTime()
     if firstConsoleRender == nil then
         if config.getValue("hyjackErrorHandler") then hyjackErrorHandler() end
@@ -689,14 +682,6 @@ function global.doConsoleRender()
         end
         logger.log("Press [" .. key .. "] to toggle console and press [shift] + [" .. key .. "] to toggle new log previews")
     end
-    if not consoleOpen and not showNewLogs then
-        return
-    end
-    -- Setup
-    local width, height = love.graphics.getDimensions()
-    local padding = 10
-    local lineWidth = width - padding * 2
-    local bottom = height - padding * 2
     -- Input Box
     love.graphics.setColor(0, 0, 0, .5)
     if consoleOpen then
@@ -764,6 +749,37 @@ function global.registerCommand(id, options)
     if not options then
         error("Options must be provided")
     end
+    if not options.name and not string.match(options.name, "^[%l%d_-]$") then
+        error("Options.name must be provided and match pattern `^[%l%d_-]$`.")
+    end
+    if not options.exec or type(options.exec) ~= "function" then
+        error("Options.exec must be a function")
+    end
+    if not options.shortDesc or type(options.shortDesc) ~= "string" then
+        error("Options.shortDesc must be a string")
+    end
+    if not options.desc or type(options.desc) ~= "string" then
+        error("Options.desc must be a string")
+    end
+    local cmd = {
+        source = id,
+        name = options.name,
+        exec = options.exec,
+        shortDesc = options.shortDesc,
+        desc = options.desc
+    }
+    for k, v in ipairs(commands) do
+        if v.source == cmd.source and v.name == cmd.name then
+            error("This command already exists")
+        end
+    end
+    table.insert(commands, cmd)
+end
+
+function global.registerOrOverwriteCommand(id, options)
+    if not options then
+        error("Options must be provided")
+    end
     if not options.name or not string.match(options.name, "^[%l%d_-]+$") then
         error("Options.name must be provided and match pattern `^[%l%d_-]+`.")
     end
@@ -800,6 +816,7 @@ function global.registerCommand(id, options)
     end
 end
 
+
 local function handleLogsChange(added)
     added = added or 0
     logOffset = math.min(logOffset + added, #logger.logs)
@@ -812,6 +829,25 @@ end
 
 function global.isConsoleFocused() -- For mods to disable keys.
     return consoleOpen
+end
+
+function global.removeCommand(name,source)
+    if not name then
+        error("Name must be provided")
+    end
+        if not source then
+        error("Source must be provided")
+    end
+
+    -- Check if the command already exists
+    for k, v in ipairs(commands) do
+        if v.source == source and v.name == name then
+            local cmd=commands[k]
+            commands[k] = nil  -- Overwrite existing command
+            return cmd
+        end
+    end
+    error("Command does not exist")
 end
 
 return global

@@ -1,0 +1,5 @@
+---@class command
+---@field name string
+---@field exec function
+---@field shortDesc string
+---@field desc string

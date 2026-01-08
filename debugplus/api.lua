@@ -29,10 +29,15 @@ end
 
 local function createCommandRegister(id) 
     return function (options) 
-        return console.registerCommand(id, options)
+        return console.registerOrOverwriteCommand(id, options)
     end
 end
 
+local function removeCommandFromRegistry()
+    return function (name,source)
+        return console.removeCommand(name,source)
+    end
+end
 function global.registerID(name)
     if not name then
         return false, "Name not provided"
@@ -43,7 +48,8 @@ function global.registerID(name)
     end
     local ret = {
         logger = createLogger(name),
-        addCommand = createCommandRegister(id)
+        addCommand = createCommandRegister(id),
+        removeCommand = removeCommandFromRegistry(),
     }
     return ret
 end

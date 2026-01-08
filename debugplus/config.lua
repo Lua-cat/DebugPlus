@@ -121,9 +121,9 @@ local configDefinition = {
     commandHistoryMax = {
         label = "Max History Size",
         type = "range",
-        default = 10000,
+        default = 100000,
         min = 1,
-        max = 20000,
+        max = 1000000,
         info = {
             "Controls the number of commands to save to disk.",
         }
