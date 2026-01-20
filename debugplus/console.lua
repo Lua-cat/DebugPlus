@@ -398,6 +398,17 @@ commands = {{
 }}
 local input = ui.TextInput.new(0)
 
+local function fullSaveHistory()
+        local max = config.getValue("commandHistoryMax")
+        local str = {}
+        for i = math.min(#history, max), 1, -1 do
+            local val = util.escapeSimple(history[i])
+            table.insert(str, val)
+        end
+        love.filesystem.createDirectory("config")
+        love.filesystem.write("config/DebugPlus.history.jkr", table.concat(str, "\n"))
+end
+
 local function loadHistory()
     if not config.getValue("commandHistory") then return end
     local content = love.filesystem.read("config/DebugPlus.history.jkr")
@@ -407,6 +418,9 @@ local function loadHistory()
     local t = {}
     for str in string.gmatch(content, "([^\n\r]+)") do
         table.insert(history, 1, util.unescapeSimple(str))
+    end
+    if #history > config.getValue("commandHistoryMax") then
+        fullSaveHistory()
     end
 end
 
